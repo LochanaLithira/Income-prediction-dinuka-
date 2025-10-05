@@ -136,9 +136,9 @@ def evaluate_model(clean_df: pd.DataFrame, model) -> Dict[str, float]:
 
     metrics = {
         "Accuracy": accuracy_score(y_test, y_pred),
-        "Precision": precision_score(y_test, y_pred, average="weighted"),
-        "Recall": recall_score(y_test, y_pred, average="weighted"),
-        "F1 Score": f1_score(y_test, y_pred, average="weighted"),
+        "Precision": precision_score(y_test, y_pred, average="weighted", zero_division=0),
+        "Recall": recall_score(y_test, y_pred, average="weighted", zero_division=0),
+        "F1 Score": f1_score(y_test, y_pred, average="weighted", zero_division=0),
     }
     return metrics
 
@@ -171,27 +171,37 @@ def main() -> None:
         for name, value in metrics.items():
             st.write(f"**{name}:** {value:.3f}")
 
-        st.divider()
-        with st.expander("Peek at cleaned data", expanded=False):
-            st.dataframe(clean_df.head(), width="stretch")
 
     st.subheader("Provide applicant details")
     with st.form("prediction_form"):
-        col1, col2, col3 = st.columns(3)
-        age = col1.number_input("Age", min_value=17, max_value=90, value=35)
-        education = col1.selectbox("Education", options=list(education_encoder.classes_), index=0)
-        hours_per_week = col1.slider("Hours per week", min_value=1, max_value=99, value=40)
+        profile_col, background_col = st.columns((1, 1))
 
-        capital_gain = col2.number_input("Capital gain", min_value=0, value=0, step=100)
-        capital_loss = col2.number_input("Capital loss", min_value=0, value=0, step=100)
-        workclass = col2.selectbox("Workclass", options=category_options["workclass"], index=0)
+        with profile_col:
+            st.markdown("#### Personal & financial profile")
+            age = st.number_input("Age", min_value=17, max_value=90, value=35)
+            hours_per_week = st.slider("Hours per week", min_value=1, max_value=99, value=40)
+            capital_gain = st.number_input("Capital gain", min_value=0, value=0, step=100)
+            capital_loss = st.number_input("Capital loss", min_value=0, value=0, step=100)
 
-        marital_status = col3.selectbox("Marital status", options=category_options["marital-status"], index=0)
-        occupation = col3.selectbox("Occupation", options=category_options["occupation"], index=0)
-        relationship = col3.selectbox("Relationship", options=category_options["relationship"], index=0)
-        race = col3.selectbox("Race", options=category_options["race"], index=0)
-        native_country = col3.selectbox("Native country", options=category_options["native-country"], index=0)
-        gender = col3.selectbox("Gender", options=category_options["gender"], index=0)
+        with background_col:
+            st.markdown("#### Background & demographics")
+            edu_col, work_col = st.columns((1, 1))
+            education = edu_col.selectbox("Education", options=list(education_encoder.classes_), index=0)
+            workclass = work_col.selectbox("Workclass", options=category_options["workclass"], index=0)
+
+            household_col, role_col = st.columns((1, 1))
+            marital_status = household_col.selectbox("Marital status", options=category_options["marital-status"], index=0)
+            occupation = role_col.selectbox("Occupation", options=category_options["occupation"], index=0)
+
+            culture_col, identity_col = st.columns((1, 1))
+            relationship = culture_col.selectbox("Relationship", options=category_options["relationship"], index=0)
+            race = identity_col.selectbox("Race", options=category_options["race"], index=0)
+
+            locale_col, gender_col = st.columns((1, 1))
+            native_country = locale_col.selectbox(
+                "Native country", options=category_options["native-country"], index=0
+            )
+            gender = gender_col.selectbox("Gender", options=category_options["gender"], index=0)
 
         submitted = st.form_submit_button("Predict income")
 
@@ -316,14 +326,6 @@ def main() -> None:
         except Exception as exc:  # pragma: no cover - surfaced directly to the UI
             st.error("An error occurred while preparing the input. Please review your entries.")
             st.exception(exc)
-
-    st.divider()
-    st.subheader("Understand the dataset")
-    st.write(
-        "The cleaned dataset mirrors the preprocessing performed in the notebooks. "
-        "Categorical values are label/one-hot encoded, income is binary (1 for >50K)."
-    )
-    st.dataframe(clean_df.describe(include="all").transpose(), width="stretch")
 
 
 if __name__ == "__main__":
