@@ -166,7 +166,7 @@ def main() -> None:
 
         st.divider()
         with st.expander("Peek at cleaned data", expanded=False):
-            st.dataframe(clean_df.head(), use_container_width=True)
+            st.dataframe(clean_df.head(), width="stretch")
 
     st.subheader("Provide applicant details")
     with st.form("prediction_form"):
@@ -223,7 +223,7 @@ def main() -> None:
                 st.write(f"Model confidence: **{proba:.1%}**")
 
             with st.expander("See the model-ready row", expanded=False):
-                st.dataframe(prepared, use_container_width=True)
+                st.dataframe(prepared, width="stretch")
         except Exception as exc:  # pragma: no cover - surfaced directly to the UI
             st.error("An error occurred while preparing the input. Please review your entries.")
             st.exception(exc)
@@ -234,7 +234,7 @@ def main() -> None:
         "The cleaned dataset mirrors the preprocessing performed in the notebooks. "
         "Categorical values are label/one-hot encoded, income is binary (1 for >50K)."
     )
-    st.dataframe(clean_df.describe(include="all").transpose(), use_container_width=True)
+    st.dataframe(clean_df.describe(include="all").transpose(), width="stretch")
 
 
 if __name__ == "__main__":
