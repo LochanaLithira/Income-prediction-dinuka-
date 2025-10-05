@@ -23,6 +23,64 @@ st.set_page_config(
     layout="wide",
 )
 
+DEFAULT_RACE_CATEGORY = "Other"
+
+RACE_DISPLAY_OPTIONS: Tuple[str, ...] = (
+    "African American",
+    "Hispanic",
+    "Caucasian",
+    "Asian",
+    "Other",
+)
+
+RACE_LABEL_ALIASES: Dict[str, str] = {
+    "african american": "Black",
+    "african-american": "Black",
+    "black": "Black",
+    "caucasian": "White",
+    "caucassian": "White",
+    "white": "White",
+    "asian": "Asian-Pac-Islander",
+    "asian pac": "Asian-Pac-Islander",
+    "asian pacific": "Asian-Pac-Islander",
+    "asian pacific islander": "Asian-Pac-Islander",
+    "asian-pac-islander": "Asian-Pac-Islander",
+    "pacific islander": "Asian-Pac-Islander",
+    "amer indian eskimo": "Amer-Indian-Eskimo",
+    "american indian": "Amer-Indian-Eskimo",
+    "native american": "Amer-Indian-Eskimo",
+    "native": "Amer-Indian-Eskimo",
+    "amerindian": "Amer-Indian-Eskimo",
+    "amer-indian-eskimo": "Amer-Indian-Eskimo",
+    "hispanic": "Other",
+    "latino": "Other",
+    "latina": "Other",
+    "latinx": "Other",
+    "spanish": "Other",
+    "other": "Other",
+}
+
+
+def canonicalize_race_value(value) -> str:
+    """Map user-provided race labels to the categories seen during training."""
+
+    if pd.isna(value):
+        return DEFAULT_RACE_CATEGORY
+
+    normalized = str(value).strip()
+    if not normalized:
+        return DEFAULT_RACE_CATEGORY
+
+    simplified = (
+        normalized.lower()
+        .replace("-", " ")
+        .replace("_", " ")
+        .replace("/", " ")
+    )
+    simplified = " ".join(simplified.split())
+
+    return RACE_LABEL_ALIASES.get(simplified, normalized)
+
 
 @st.cache_data(show_spinner=False)
 def load_clean_data() -> pd.DataFrame:
@@ -78,6 +136,7 @@ def build_category_options(raw_df: pd.DataFrame) -> Dict[str, List[str]]:
     for column in categorical_cols:
         values = raw_df[column].dropna().unique().tolist()
         options[column] = sorted(values)
+    options["race"] = list(RACE_DISPLAY_OPTIONS)
     return options
 
 
@@ -96,6 +155,9 @@ def preprocess_input(
     # Apply the same scaling and transformations as training
     if hours_scaler is not None:
         prepared[["hours-per-week"]] = hours_scaler.transform(prepared[["hours-per-week"]])
+
+    if "race" in prepared.columns:
+        prepared["race"] = prepared["race"].apply(canonicalize_race_value)
 
     for column in ["capital-gain", "capital-loss"]:
         prepared[column] = np.log1p(prepared[column].astype(float))
