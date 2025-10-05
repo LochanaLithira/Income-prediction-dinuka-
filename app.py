@@ -4,10 +4,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict, List, Tuple
 
+import altair as alt
 import joblib
 import numpy as np
 import pandas as pd
 import streamlit as st
+from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -122,16 +124,21 @@ def preprocess_input(
 
 
 def evaluate_model(clean_df: pd.DataFrame, model) -> Dict[str, float]:
-    """Provide quick reference metrics using the saved training dataset."""
+    """Recreate the notebook evaluation: 80/20 split with weighted metrics."""
     X = clean_df.drop(columns=["income"])
     y = clean_df["income"]
-    y_pred = model.predict(X)
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42, stratify=y
+    )
+
+    y_pred = model.predict(X_test)
 
     metrics = {
-        "Accuracy": accuracy_score(y, y_pred),
-        "Precision": precision_score(y, y_pred),
-        "Recall": recall_score(y, y_pred),
-        "F1 Score": f1_score(y, y_pred),
+        "Accuracy": accuracy_score(y_test, y_pred),
+        "Precision": precision_score(y_test, y_pred, average="weighted"),
+        "Recall": recall_score(y_test, y_pred, average="weighted"),
+        "F1 Score": f1_score(y_test, y_pred, average="weighted"),
     }
     return metrics
 
@@ -218,9 +225,91 @@ def main() -> None:
 
             label = ">=50K" if prediction == 1 else "<=50K"
 
-            st.success(f"Predicted Income Class: **{label}**")
+
+            prediction_color = "#2E7D32" if prediction == 1 else "#1E88E5"
+            outcome_sentence = (
+                "The model expects this profile to earn at least $50K per year."
+                if prediction == 1
+                else "The model expects this profile to earn $50K or less per year."
+            )
+
+            st.markdown(
+                f"""
+                <div style="
+                    background: linear-gradient(135deg, {prediction_color}33, rgba(30, 30, 35, 0.1));
+                    border: 1px solid {prediction_color}66;
+                    padding: 1.5rem;
+                    border-radius: 1rem;
+                    margin-bottom: 1rem;
+                    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+                    backdrop-filter: blur(8px);
+                ">
+                    <p style="font-size: 0.9rem; margin: 0; color: rgba(255, 255, 255, 0.75);">Predicted income class</p>
+                    <h3 style="margin: 0.3rem 0 0.6rem 0; color: #FFFFFF; font-size: 1.6rem;">{label}</h3>
+                    <p style="margin: 0; color: rgba(255, 255, 255, 0.7);">{outcome_sentence}</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
             if proba is not None:
-                st.write(f"Model confidence: **{proba:.1%}**")
+                class_prob_df = pd.DataFrame(
+                    {
+                        "Income class": ["≤ $50K", "≥ $50K"],
+                        "Probability": [float(proba_values[0]), float(proba_values[1])],
+                    }
+                )
+                predicted_label = "≥ $50K" if prediction == 1 else "≤ $50K"
+                class_prob_df["Predicted"] = class_prob_df["Income class"].eq(predicted_label)
+                ordered_classes = (
+                    class_prob_df.sort_values("Predicted", ascending=False)["Income class"].tolist()
+                )
+
+                confidence_pct = proba * 100
+                complementary_pct = (1 - proba) * 100
+
+                summary_col, chart_col = st.columns([1, 1.5])
+                with summary_col:
+                    st.metric("Model confidence", f"{proba:.1%}")
+                    st.progress(int(round(confidence_pct)))
+                    st.caption(
+                        f"The model assigns {proba:.1%} probability to {predicted_label} and "
+                        f"{complementary_pct:.1f}% to the alternative class."
+                    )
+
+                with chart_col:
+                    chart = (
+                        alt.Chart(class_prob_df)
+                        .mark_bar(cornerRadiusTopRight=8, cornerRadiusBottomRight=8)
+                        .encode(
+                            x=alt.X(
+                                "Probability:Q",
+                                title="Probability",
+                                scale=alt.Scale(domain=[0, 1]),
+                                axis=alt.Axis(format="%"),
+                            ),
+                            y=alt.Y(
+                                "Income class:N",
+                                title=None,
+                                sort=ordered_classes,
+                            ),
+                            color=alt.condition(
+                                alt.datum.Predicted,
+                                alt.value(prediction_color),
+                                alt.value("#BFC8D6"),
+                            ),
+                            tooltip=[
+                                alt.Tooltip("Income class:N", title="Income class"),
+                                alt.Tooltip("Probability:Q", title="Probability", format=".1%"),
+                            ],
+                        )
+                        .properties(height=120)
+                    )
+                    st.altair_chart(chart, use_container_width=True)
+            else:
+                st.info(
+                    "This model does not expose probability estimates, so only the predicted class is displayed."
+                )
 
             with st.expander("See the model-ready row", expanded=False):
                 st.dataframe(prepared, width="stretch")
