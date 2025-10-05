@@ -70,16 +70,7 @@ htmlcov/
 # Ignore executed notebook outputs (optional)
 *.nbconvert.ipynb
 
-# Project data, models, and tools (binaries)
-data/
-models/
-tools/
-*.pkl
-*.joblib
-*.h5
-*.hdf5
-*.pt
-*.pth
+
 
 # Optional: large files / caches
 .cache/
