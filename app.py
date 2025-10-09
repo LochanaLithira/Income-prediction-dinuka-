@@ -217,22 +217,7 @@ def main() -> None:
         "Interact with the trained XGBoost model to estimate whether an individual's income exceeds $50K."
     )
 
-    with st.sidebar:
-        st.header("Project snapshot")
-        st.metric("Total cleaned samples", f"{len(clean_df):,}")
-        st.metric("Feature count", f"{len(feature_columns)}")
-
-        if hours_scaler is None:
-            st.info(
-                "Hours-per-week values are used as-is because no scaler artifact was found."
-            )
-
-        st.divider()
-        st.subheader("Model performance")
-        metrics = evaluate_model(clean_df, model)
-        for name, value in metrics.items():
-            st.write(f"**{name}:** {value:.3f}")
-
+    
 
     st.subheader("Provide applicant details")
     with st.form("prediction_form"):
@@ -324,67 +309,9 @@ def main() -> None:
                 unsafe_allow_html=True,
             )
 
-            if proba is not None:
-                class_prob_df = pd.DataFrame(
-                    {
-                        "Income class": ["≤ $50K", "≥ $50K"],
-                        "Probability": [float(proba_values[0]), float(proba_values[1])],
-                    }
-                )
-                predicted_label = "≥ $50K" if prediction == 1 else "≤ $50K"
-                class_prob_df["Predicted"] = class_prob_df["Income class"].eq(predicted_label)
-                ordered_classes = (
-                    class_prob_df.sort_values("Predicted", ascending=False)["Income class"].tolist()
-                )
-
-                confidence_pct = proba * 100
-                complementary_pct = (1 - proba) * 100
-
-                summary_col, chart_col = st.columns([1, 1.5])
-                with summary_col:
-                    st.metric("Model confidence", f"{proba:.1%}")
-                    st.progress(int(round(confidence_pct)))
-                    st.caption(
-                        f"The model assigns {proba:.1%} probability to {predicted_label} and "
-                        f"{complementary_pct:.1f}% to the alternative class."
-                    )
-
-                with chart_col:
-                    chart = (
-                        alt.Chart(class_prob_df)
-                        .mark_bar(cornerRadiusTopRight=8, cornerRadiusBottomRight=8)
-                        .encode(
-                            x=alt.X(
-                                "Probability:Q",
-                                title="Probability",
-                                scale=alt.Scale(domain=[0, 1]),
-                                axis=alt.Axis(format="%"),
-                            ),
-                            y=alt.Y(
-                                "Income class:N",
-                                title=None,
-                                sort=ordered_classes,
-                            ),
-                            color=alt.condition(
-                                alt.datum.Predicted,
-                                alt.value(prediction_color),
-                                alt.value("#BFC8D6"),
-                            ),
-                            tooltip=[
-                                alt.Tooltip("Income class:N", title="Income class"),
-                                alt.Tooltip("Probability:Q", title="Probability", format=".1%"),
-                            ],
-                        )
-                        .properties(height=120)
-                    )
-                    st.altair_chart(chart, use_container_width=True)
-            else:
-                st.info(
-                    "This model does not expose probability estimates, so only the predicted class is displayed."
-                )
-
-            with st.expander("See the model-ready row", expanded=False):
-                st.dataframe(prepared, width="stretch")
+            # Only display the predicted class and a short outcome sentence.
+            # Probability estimates and the model-ready row are intentionally omitted
+            # for the commercial product release.
         except Exception as exc:  # pragma: no cover - surfaced directly to the UI
             st.error("An error occurred while preparing the input. Please review your entries.")
             st.exception(exc)
