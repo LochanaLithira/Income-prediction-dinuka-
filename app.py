@@ -61,6 +61,124 @@ RACE_LABEL_ALIASES: Dict[str, str] = {
 }
 
 
+# Workclass display options and mapping to training labels
+WORKCLASS_DISPLAY_TO_TRAINING: Dict[str, str] = {
+    "Private Sector": "Private",
+    "Local Government": "Local-gov",
+    "Unknown / Not Provided": "Unknown",
+    "Self-Employed (Non-incorporated)": "Self-emp-not-inc",
+    "Federal Government": "Federal-gov",
+    "State Government": "State-gov",
+    "Self-Employed (Incorporated)": "Self-emp-inc",
+    "Unpaid": "Without-pay",
+    "Never Employed": "Never-worked",
+}
+
+WORKCLASS_DISPLAY_OPTIONS = list(WORKCLASS_DISPLAY_TO_TRAINING.keys())
+
+
+def canonicalize_workclass_value(value: str) -> str:
+    """Map a user-friendly workclass label back to the training label.
+
+    If the provided value is already one of the training labels, return it.
+    Missing or empty values are mapped to 'Unknown'.
+    """
+    if pd.isna(value):
+        return "Unknown"
+
+    normalized = str(value).strip()
+    if not normalized:
+        return "Unknown"
+
+    # If user passed a display label, map to training label
+    if normalized in WORKCLASS_DISPLAY_TO_TRAINING:
+        return WORKCLASS_DISPLAY_TO_TRAINING[normalized]
+
+    # Otherwise, try a relaxed match (case-insensitive)
+    lower = normalized.lower()
+    for disp, train in WORKCLASS_DISPLAY_TO_TRAINING.items():
+        if disp.lower() == lower:
+            return train
+
+    # If it's already a training-style label, return as-is
+    return normalized
+
+
+# Occupation display options and mapping to training labels
+OCCUPATION_DISPLAY_TO_TRAINING: Dict[str, str] = {
+    "Machine Operator / Inspector": "Machine-op-inspct",
+    "Agriculture / Farming & Fishing": "Farming-fishing",
+    "Protective Services (Police/Fire)": "Protective-serv",
+    "Unknown / Not Provided": "Unknown",
+    "Other Services": "Other-service",
+    "Professional Specialties (e.g., Lawyers, Doctors)": "Prof-specialty",
+    "Crafts & Repair": "Craft-repair",
+    "Administrative & Clerical": "Adm-clerical",
+    "Executive & Managerial": "Exec-managerial",
+    "Technical Support": "Tech-support",
+    "Sales & Marketing": "Sales",
+    "Private Household Services (e.g., Nannies)": "Priv-house-serv",
+    "Transportation & Moving": "Transport-moving",
+    "Labor & Cleaning Services": "Handlers-cleaners",
+    "Military / Armed Forces": "Armed-Forces",
+}
+
+OCCUPATION_DISPLAY_OPTIONS = list(OCCUPATION_DISPLAY_TO_TRAINING.keys())
+
+
+def canonicalize_occupation_value(value: str) -> str:
+    """Map a user-friendly occupation label back to the training label.
+
+    Missing or empty values map to 'Unknown'. If the value already looks
+    like a training label, return as-is.
+    """
+    if pd.isna(value):
+        return "Unknown"
+
+    normalized = str(value).strip()
+    if not normalized:
+        return "Unknown"
+
+    if normalized in OCCUPATION_DISPLAY_TO_TRAINING:
+        return OCCUPATION_DISPLAY_TO_TRAINING[normalized]
+
+    lower = normalized.lower()
+    for disp, train in OCCUPATION_DISPLAY_TO_TRAINING.items():
+        if disp.lower() == lower:
+            return train
+
+    return normalized
+
+
+# Marital-status display mapping
+MARITAL_DISPLAY_TO_TRAINING: Dict[str, str] = {
+    "Never Married": "Never-married",
+    "Married (Civilian Spouse)": "Married-civ-spouse",
+    "Widowed": "Widowed",
+    "Divorced": "Divorced",
+    "Separated": "Separated",
+    "Married (Spouse Absent)": "Married-spouse-absent",
+    "Married (Armed Forces Spouse)": "Married-AF-spouse",
+}
+
+MARITAL_DISPLAY_OPTIONS = list(MARITAL_DISPLAY_TO_TRAINING.keys())
+
+
+def canonicalize_marital_value(value: str) -> str:
+    if pd.isna(value):
+        return "Unknown"
+    normalized = str(value).strip()
+    if not normalized:
+        return "Unknown"
+    if normalized in MARITAL_DISPLAY_TO_TRAINING:
+        return MARITAL_DISPLAY_TO_TRAINING[normalized]
+    lower = normalized.lower()
+    for disp, train in MARITAL_DISPLAY_TO_TRAINING.items():
+        if disp.lower() == lower:
+            return train
+    return normalized
+
+
 def canonicalize_race_value(value) -> str:
     """Map user-provided race labels to the categories seen during training."""
 
@@ -136,7 +254,17 @@ def build_category_options(raw_df: pd.DataFrame) -> Dict[str, List[str]]:
     for column in categorical_cols:
         values = raw_df[column].dropna().unique().tolist()
         options[column] = sorted(values)
+    # For race, prefer a curated display list
     options["race"] = list(RACE_DISPLAY_OPTIONS)
+
+    # For workclass, present user-friendly display labels (defined above)
+    options["workclass"] = WORKCLASS_DISPLAY_OPTIONS
+
+    # For occupation, present friendly display labels
+    options["occupation"] = OCCUPATION_DISPLAY_OPTIONS
+
+    # For marital-status, present friendly display labels
+    options["marital-status"] = MARITAL_DISPLAY_OPTIONS
     return options
 
 
@@ -158,6 +286,18 @@ def preprocess_input(
 
     if "race" in prepared.columns:
         prepared["race"] = prepared["race"].apply(canonicalize_race_value)
+
+    # Map friendly workclass labels back to the training labels
+    if "workclass" in prepared.columns:
+        prepared["workclass"] = prepared["workclass"].apply(canonicalize_workclass_value)
+
+    # Map friendly occupation labels back to training labels
+    if "occupation" in prepared.columns:
+        prepared["occupation"] = prepared["occupation"].apply(canonicalize_occupation_value)
+
+    # Map marital-status friendly labels back to training labels
+    if "marital-status" in prepared.columns:
+        prepared["marital-status"] = prepared["marital-status"].apply(canonicalize_marital_value)
 
     for column in ["capital-gain", "capital-loss"]:
         prepared[column] = np.log1p(prepared[column].astype(float))
